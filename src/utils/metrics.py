@@ -1,41 +1,29 @@
 #!/usr/bin/env python
 
-import numpy as np
+import torch
 from utils.meter import MetricLogger
-from utils.basic import to_np, count_nonzero
-
-meter = MetricLogger()
 
 
 def mae(pred, gt):
     """
-    pred: np.array (B, 1, H, W)
-    gt: np.array(B, 1, H, W)
+    Both pred and gt should be binary float tensors
+    pred: torch.tensor (B, 1, H, W)
+    gt: torch.tensor(B, 1, H, W)
     """
-    pred = np.squeeze(pred)
-    gt = np.squeeze(gt)
-    mae = np.mean(np.abs(pred-gt))
-    return float(mae)
+    mae = torch.mean(torch.abs(pred-gt), dim=(-2, -1))
+    return mae
 
 
 def precision(pred, gt):
     """
     Defined as portion of correctly classified fg pixels.
     tp / tp + fp
-    pred: np.array (B, 1, H, W)
-    gt: np.array(B, 1, H, W)
+    Both pred and gt should be binary float tensors
+    pred: torch.tensor (B, 1, H, W)
+    gt: torch.tensor(B, 1, H, W)
     """
-    pred = np.squeeze(pred)
-    gt = np.squeeze(gt)
-    pred[pred<=0.5] = 0.0
-    pred[pred>0.5] = 1.0
-    diff = pred * gt
-    prec = 0.0
-    for im in range(pred.shape[0]):
-        tp = count_nonzero(gt[im])
-        prec += count_nonzero(diff[im]) / (count_nonzero(pred[im]) + 1e-6)
-
-    return prec/pred.shape[0]
+    intersection = pred * gt
+    return torch.nan_to_num(torch.count_nonzero(intersection, dim=(-2, -1))/torch.count_nonzero(pred, dim=(-2, -1)), nan=0)
 
 
 def recall(pred, gt):
@@ -45,16 +33,8 @@ def recall(pred, gt):
     pred: np.array size (B, 1, H, W)
     gt: np.array size (B, 1, H, W)
     """
-    pred = np.squeeze(pred)
-    gt = np.squeeze(gt)
-    pred[pred<=0.5] = 0.0
-    pred[pred>0.5] = 1.0
-    diff = pred * gt
-    recall = 0.0
-    for im in range(pred.shape[0]):
-        recall += count_nonzero(diff[im]) / (count_nonzero(gt[im]) + 1e-6)
-
-    return recall / pred.shape[0]
+    intersection = pred * gt
+    return torch.nan_to_num(torch.count_nonzero(intersection, dim=(-2, -1))/torch.count_nonzero(gt, dim=(-2, -1)), nan=0)
 
 
 def f1(precision, recall, beta):
@@ -66,34 +46,25 @@ def f1(precision, recall, beta):
     return (1+beta**2) * (precision*recall) / ((beta**2 * precision) + recall)
 
 
-def log_metrics(pred, gt):
-    avg_meter = MetricLogger()
-    pred = to_np(pred)
-    gt = to_np(gt)
-    prec = precision(pred, gt)
-    rec = recall(pred, gt)
-    avg_meter.update(precision=prec)
-    avg_meter.update(recall=rec)
-    avg_meter.update(mae=mae(pred, gt))
-    return avg_meter
+def binary_jaccard(pred, gt):
+    i = torch.count_nonzero(pred * gt, dim=(-2, -1))
+    u = torch.count_nonzero(pred + gt, dim=(-2, -1))
+    return i / u
 
 
-def main():
-    pred = np.ones((5, 1, 28, 28))
-    gt = np.ones((5, 1, 28, 28))
-    print(precision(pred, gt))
-    print(recall(pred, gt))
-    print(mae(pred, gt))
-    pred = np.zeros((5, 1, 28, 28))
-    print(precision(pred, gt))
-    print(recall(pred, gt))
-    print(mae(pred, gt))
-    pred = np.zeros((5, 1, 28, 28))
-    pred[:,:, ::2, ::2] = 1
-    print(precision(pred, gt))
-    print(recall(pred, gt))
-    print(mae(pred, gt))
+def dice_index(pred, gt):
+    numerator = torch.count_nonzero(pred*gt, dim=(-2, -1))
+    denominator = torch.count_nonzero(pred, dim=(-2, -1)) + torch.count_nonzero(gt, dim=(-2, -1))
+    return (2*numerator)/denominator
 
 
-if __name__ == "__main__":
-        main()
+def log_metrics(pred, gt, avg_meter, bin_th=0.5):
+    bin_pred = (pred > bin_th).to(torch.float)
+    bin_gt = (gt> bin_th).to(torch.float)
+    avg_meter.update(precision=precision(bin_pred, bin_gt))
+    avg_meter.update(recall=recall(bin_pred, bin_gt))
+    avg_meter.update(mae=mae(bin_pred, bin_gt))
+    avg_meter.update(dice=dice_index(bin_pred, bin_gt))
+    avg_meter.update(jaccard=binary_jaccard(bin_pred, bin_gt))
+    # avg_meter.update(f_beta=f1(prec, rec, beta=0.3))
+

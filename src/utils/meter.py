@@ -10,43 +10,39 @@ class SmoothedValue(object):
     window or the global series average.
     """
 
-    def __init__(self, window_size=20):
-        self.deque = deque(maxlen=window_size)
-        self.series = []
-        self.total = 0.0
-        self.count = 0
+    def __init__(self):
+        self.values = None
+        self.tensor_initialized = False
 
     def update(self, value):
-        self.deque.append(value)
-        self.series.append(value)
-        self.count += 1
-        self.total += value
+        if not self.tensor_initialized:
+            self.values = value
+            self.tensor_initialized = True
+        else:
+            self.values = torch.cat((self.values, value), dim=0) #concatenate along batch dimension
 
     @property
-    def median(self):
-        d = torch.tensor(list(self.deque))
-        return d.median().item()
+    def std(self):
+        return torch.std(self.values, dim=0, unbiased=True).item()
 
     @property
     def avg(self):
-        d = torch.tensor(list(self.deque))
-        return d.mean().item()
+        return torch.mean(self.values, dim=0).item()
 
     @property
-    def global_avg(self):
-        return self.total / self.count
+    def num_samples(self):
+        return self.values.shape[0]
 
 
 class MetricLogger(object):
-    def __init__(self, delimiter="\t"):
+    def __init__(self, delimiter="\n", print_precision="{:.2f}"):
         self.meters = defaultdict(SmoothedValue)
         self.delimiter = delimiter
+        self.print_precision = print_precision
 
     def update(self, **kwargs):
         for k, v in kwargs.items():
-            if isinstance(v, torch.Tensor):
-                v = v.item()
-            assert isinstance(v, (float, int))
+            assert isinstance(v, torch.Tensor), "Metric to update should be a torch tensor"
             self.meters[k].update(v)
 
     def __getattr__(self, attr):
@@ -56,8 +52,9 @@ class MetricLogger(object):
 
     def __str__(self):
         loss_str = []
+        info_order = "\nName: avg (std) num_samples\n"
+        base_str = "{}: " + self.print_precision + " (" + self.print_precision + ") {}"
         for name, meter in self.meters.items():
-            loss_str.append(
-                "{}: {:.4f} ({:.4f})".format(name, meter.median, meter.global_avg)
-            )
-        return self.delimiter.join(loss_str)
+            loss_str.append(base_str.format(name, meter.avg, meter.std, meter.num_samples))
+
+        return info_order + self.delimiter.join(loss_str)

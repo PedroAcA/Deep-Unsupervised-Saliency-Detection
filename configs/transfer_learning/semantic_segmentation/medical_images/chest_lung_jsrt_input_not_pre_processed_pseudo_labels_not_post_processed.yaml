@@ -1,0 +1,42 @@
+MODEL:
+  PRE_TRAINED: True
+  TRANSFER_LEARNING: False
+SYSTEM:
+  DEVICE: 'cuda:0'
+  EXP_TYPE: 'full'
+  EXP_NAME: 'jsrt_lung_segmentation_input_not_pre_processed_pseudo_labels_not_post_processed'
+  CHKPT_FREQ: 101
+  LOG_FREQ: 5
+SOLVER:
+  BATCH_SIZE: 2
+  ITER_SIZE: 10
+  NUM_IMG: 201
+  NUM_MAPS: 2
+  IMG_SIZE: (425, 425)
+  EPOCHS: 20
+  OPTIMIZER: 'SGD'
+  LAMBDA: 1e-7
+  LR: 1e-3
+  MOMENTUM: 0.9
+  SCHEDULER: 'ReduceLROnPlateau'
+  FACTOR: 0.9
+  PAITENCE: 0
+  THRESHOLD: 1e-4
+  MIN_LR: 1e-16
+  COOLDOWN: 0
+SAVE_ROOT: "../experiments/"
+DATA:
+  TRAIN:
+    ROOT: '../datasets/JSRT_dataset/jpg_imgs/'
+    LIST: '../datasets/JSRT_dataset/pseudo_train_2_labelers.lst'
+    NOISE_ROOT: '../datasets/JSRT_dataset/pseudo_labels_no_processing/'
+    GT_ROOT: None
+  VAL:
+    ROOT: None
+    LIST: None
+    NOISE_ROOT: None
+    GT_ROOT: None
+  TEST:
+    ROOT: '../datasets/JSRT_dataset/jpg_imgs/'
+    LIST: '../datasets/JSRT_dataset/test.lst'
+    GT_ROOT: '../datasets/JSRT_dataset/masks/lungs/'

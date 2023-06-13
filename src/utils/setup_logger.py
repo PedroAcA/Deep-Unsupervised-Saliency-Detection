@@ -3,7 +3,7 @@ import os
 
 
 def setup_logger(name='', save_dir='./', fn='log.txt'):
-    if name is '':
+    if name == '':
         logger = logging.getLogger(__name__)
     else:
         logger = logging.getLogger(name)

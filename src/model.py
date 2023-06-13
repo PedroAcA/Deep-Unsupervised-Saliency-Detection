@@ -1,135 +1,113 @@
 #!/usr/bin/env python
 import logging
-
-import numpy as np
-import torch
 import torch.nn as nn
 from torchvision.models.segmentation import deeplabv3_resnet101
+from torch.distributions.normal import Normal
+import torch, torchvision
 
 
 class NoiseModule:
-    def __init__(self, cfg):
-        """
-        Noise Module implements the noise mdoel from the paper.
-        It maintains a variance for each pixel of each image.
-        sd = sqrt(var), we store the variances for each of the prior distributions
-        Sampling is done using var * N(0, 1)
-        It is responsible for sampling from the noise distribution, loss calculation and updating the variance.
-        Args
-        ---
-        cfg: (yacs.CfgNode) base configuration for the experiment.
-        """
-        super(NoiseModule, self).__init__()
-        self.logger = logging.getLogger(str(cfg.SYSTEM.EXP_NAME) + ".noise_module")
-        self.num_imgs = cfg.SOLVER.NUM_IMG
-        self.num_maps = cfg.SOLVER.NUM_MAPS
-        self.h, self.w = cfg.SOLVER.IMG_SIZE
-        self.num_pixels = self.h * self.w
-        self.alpha = cfg.NOISE.ALPHA
-        self.device = cfg.SYSTEM.DEVICE
-        # prior variance of the noise distribution, Initalized with zeros(!section 3.2 last para)
-        self.noise_variance = torch.zeros(self.num_imgs * self.num_pixels)
-        # emperical variance, observed variance between prediction and unsup labels
-        self.emp_var = torch.zeros(self.num_imgs * self.num_pixels)
+	def __init__(self, cfg):
+		"""
+		Noise Module implements the noise mdoel from the paper.
+		It maintains a variance for each pixel of each image.
+		sd = sqrt(var), we store the variances for each of the prior distributions
+		Sampling is done using var * N(0, 1)
+		It is responsible for sampling from the noise distribution, loss calculation and updating the variance.
+		Args
+		---
+		cfg: (yacs.CfgNode) base configuration for the experiment.
+		"""
+		super(NoiseModule, self).__init__()
+		self.cfg = cfg
+		self.logger = logging.getLogger(str(cfg.SYSTEM.EXP_NAME) + ".noise_module")
+		self.num_imgs = cfg.SOLVER.NUM_IMG
+		self.num_maps = cfg.SOLVER.NUM_MAPS
+		self.h, self.w = cfg.SOLVER.IMG_SIZE
+		self.batch_size = cfg.SOLVER.BATCH_SIZE
+		self.alpha = cfg.NOISE.ALPHA
+		self.device = cfg.SYSTEM.DEVICE
+		# a priori standard deviation of the noise distribution
+		self.noise_std = torch.zeros((self.num_imgs, self.h, self.w), device=self.device)
+		self.small_ct = torch.finfo(self.noise_std.dtype).eps #smaller representable number between 0 and 1
+		self.round = 1
 
-    def get_index(self, arr=None, img_idx=None):
-        """
-        Function for fetching indexes of pixels for img_idx
-        Args
-        ---
-        img_idx: (int) index of image
-        arr: (list) value array to fetch values from
-        Returns
-        ---
-        values, idxs
-        values: arr[idxs]
-        idxs: starting and ending of pixels for the image
-        """
-        if arr is None:
-            arr = self.noise_variance
-        idx = img_idx * self.num_pixels
-        return arr[idx:idx+self.num_pixels], np.arange(idx, idx+self.num_pixels)
+	def get_batch_prior_distribution(self, idxs):
+		batch_std = torch.clamp(self.noise_std[idxs], min=self.small_ct)
+		batch_mean = torch.zeros_like(batch_std)
+		return Normal(batch_mean, batch_std)
 
-    def get_index_multiple(self, arr=None, img_idxs=None):
-        """
-        Function for fetching indexes of pixels for img_idx
-        Args
-        ---
-        img_idx: (list[int]) indexs of image
-        arr: (list) value array to fetch values from
-        Returns
-        --- values: np.array, (len(img_idxs), num_pixels) idxs: starting and ending of pixels for the image
-        """
-        if arr is None:
-            arr = self.noise_variance
-        noise = np.zeros((len(img_idxs), self.num_pixels), dtype=np.float)
-        noise_idx = np.zeros((len(img_idxs), self.num_pixels), dtype=np.float)
-        for key, img_idx in enumerate(img_idxs):
-            idx = img_idx * self.num_pixels
-            noise[key] = arr[idx:idx+self.num_pixels]
-            noise_idx[key] = np.arange(idx, idx+self.num_pixels)
-        return noise, noise_idx
+	def sample_noise(self, idxs):
+		noise = torch.zeros(len(idxs), self.num_maps, self.h, self.w)
+		batch_prior_distribution = self.get_batch_prior_distribution(idxs)
+		for i in range(self.num_maps):
+			noise[:,i] = batch_prior_distribution.sample()
+		return noise
 
-    def loss_fast(self, var1, var2):
-        """
-        Computes the loss using Eq 6
-        Args
-        ----
-        var1: variance of q distribution, prior variance
-        var2: variance of p distribution, predictive variance
-        Returns
-        ---
-        noise loss:  float noise loss per image Note! different from paper which uses sum of noise
-        """
-        noise_loss = 0
-        for idx in range(var1.shape[0]):
-            covar1 = var1[idx].to(self.device) + 1e-6
-            covar2 = var2[idx].to(self.device) + 1e-6
-            ratio = 1. * (covar1 / covar2)
-            loss = -0.5 * (torch.log(ratio) - ratio + 1).to(self.device)
-            loss = abs(loss)
-            # See Eq 6 from paper and https://github.com/pytorch/pytorch/blob/master/torch/distributions/kl.py#L394
-            noise_loss += torch.sum(loss) / var1.shape[1]
-        return noise_loss / var1.shape[0]
+	def add_noise_to_prediction(self, pred, item_idxs):
+		if self.round == 1:
+			# pred: In round 1 no sampling is made because variance is zero.
+			# Here the prediction is repeated along the noisy maps dimension to have the same size as noisy mapss
+			y_pred = torch.repeat_interleave(pred, repeats=self.cfg.SOLVER.NUM_MAPS, dim=1)
+		# Round > 1
+		else:
+			# noise_prior: Sampled Noise from Noise Module, (None, NUM_MAPS, 128, 128)
+			noise_prior = self.sample_noise(item_idxs).to(self.device)
+			# noisy_pred: Noisy predictions after adding noise to predictions, (None, NUM_MAPS, 128, 128)
+			y_pred = pred + noise_prior
+			# truncate to lie in range[0, 1] see 3.2 after Eq 4
+			y_pred = torch.clamp(y_pred, min=0.0, max=1.0)
 
-    def sample_noise(self, idxs):
-        """
-        Samples noise from Normal distribution with prior variance.
-        Args
-        ---
-        idxs: List[int]
-        sample from standard normal and transform using var for idxs
-        Returns
-        ---
-        samples: np.array, noise samples of shape (len(idxs), NUM_MAPS, 128, 128)
-        """
-        samples = torch.zeros(len(idxs), self.num_maps, self.h, self.w)
-        for idx, img_idx in enumerate(idxs):
-            var, var_idx = self.get_index(self.noise_variance, img_idx)
-            var = var.view(self.h, self.w).to(self.device)
-            for map_idx in range(self.num_maps):
-                # elementwise mutliplication with prior variance for each image of samples from N(0, 1)
-                sample = var * torch.zeros(self.h, self.w).normal_().to(self.device)
-                samples[idx][map_idx] = sample
-        return samples
+		return y_pred
 
-    def update(self):
-        """
-        Updates the prior variance for each pixel of each image by emp variance
-        !Note: Emp variance needs to be updated before calling this.
-        """
-        print("Updating Noise")
-        print("----------------------------------------")
-        # import ipdb; ipdb.set_trace()
-        # See equation 7, !Note: we have saved the variances and not sd, hence no need for squaring
-        self.noise_variance = self.noise_variance + self.alpha * (self.emp_var - self.noise_variance)
-        print(f'Max: {torch.max(self.noise_variance)}, Min :{torch.min(self.noise_variance)}')
-        self.logger.info(f"Noise Variance: {self.noise_variance}")
-        print("----------------------------------------")
+	def update(self, pred_model, train_loader):
+		"""
+		Updates the prior variance for each pixel of each image by emp variance
+		Args
+		---
+		pred_model:  the backbone network.
+		train_loader: torch.utils.data.dataloader for training data
+		"""
+		self.logger.info("Updating Noise at round {}".format(self.round))
+		self.logger.info("----------------------------------------")
+		with torch.no_grad():
+			pred_model.eval()
+			for batch_idx, data in enumerate(train_loader):
+				# x : input data, (None, 3, 128, 128)
+				x = data['sal_image'].to(self.device)
+				item_idxs = data['idx']
+				# y_noise: Unsup labels, (None, NUM_MAPS, H, W)
+				y_noise = torch.reshape(data['sal_noisy_label'].to(self.device),
+										(self.batch_size, self.num_maps, self.h, self.w))
+				# pred: (None, 1, H, W)
+				pred = pred_model(x)
+				# emp_std: Empirical Standard Deviation for each pixel for each image, (None, H, W)
+				emp_std = torch.std(y_noise - pred, 1, unbiased=True)
+				emp_var = torch.square(emp_std)
+				prior_var = torch.square(self.noise_std[item_idxs])
+				prior_var = prior_var + self.alpha * (emp_var - prior_var)
+				self.noise_std[item_idxs] = torch.sqrt(prior_var)
+
+		self.round = self.round + 1
+		self.logger.info(f'Max: {torch.max(self.noise_std)}, Min :{torch.min(self.noise_std)}')
+		self.logger.info(f"Noise Standard Deviation: {self.noise_std}")
+		self.logger.info("----------------------------------------")
 
 
-def BaseModule(cfg):
-    model = deeplabv3_resnet101(pretrained=True)
-    model.classifier[4] = nn.Conv2d(256, 1, kernel_size=(1, 1), stride=(1, 1))
-    model.aux_classifier[4] = nn.Conv2d(256, 1, kernel_size=(1, 1), stride=(1, 1))
-    return model
+class BaseModule(nn.Module):
+	def __init__(self, cfg):
+		super(BaseModule, self).__init__()
+		self.model = deeplabv3_resnet101(pretrained=cfg.MODEL.PRE_TRAINED, pretrained_backbone=cfg.MODEL.PRE_TRAINED)
+		self.sigmoid_layer = nn.Sigmoid()
+		self.model.classifier[4] = nn.Conv2d(256, 1, kernel_size=(1, 1), stride=(1, 1))
+		if cfg.MODEL.PRE_TRAINED:
+			self.model.aux_classifier[4] = nn.Conv2d(256, 1, kernel_size=(1, 1), stride=(1, 1))
+
+		device = cfg.SYSTEM.DEVICE
+		self.model = self.model.to(device)
+		self.sigmoid_layer = self.sigmoid_layer.to(device)
+
+	def forward(self, input):
+		x = self.model(input)
+		x = self.sigmoid_layer(x["out"])
+		return x

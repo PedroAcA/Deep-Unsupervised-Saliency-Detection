@@ -10,6 +10,7 @@ def to_np(x):
     else:
         return x.detach().numpy()
 
+
 def count_nonzero(x):
     """
     x: np.array of shape (1, ) or (2, ?)
@@ -24,6 +25,6 @@ def set_seeds(cfg):
     np.random.seed(cfg.SYSTEM.SEED)
 
 
-def custom_lr(base_lr, maxiter, power):
-    fnc = lambda iter: base_lr * (1 - iter / maxiter) ** power
+def custom_lr(maxiter, power):
+    fnc = lambda epoch: (1 - epoch / maxiter) ** power
     return fnc

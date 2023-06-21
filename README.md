@@ -3,9 +3,7 @@ This project performs unsupervised lung segmentation using visual saliency at tr
 # Model testing
 To replicate our results, please follow the steps below.
 ## Software setup
-1. Install Python 3.7.13 (a python virtual enviroment can be used)
-
-2. Install Pytorch and Torchvision
+1. Install Python, Pytorch and Torchvision (a python virtual enviroment can be used)
 	- For the GPU version, install the CUDA Toolkit 11.3 available at https://developer.nvidia.com/cuda-11.3.0-download-archive (last access on 20th, June 2023) and run `python -m pip install -r requirements.txt` on a prompt opened in this folder.
 		- This project was also tested on the following python, cuda development toolkit, pytorch and torchvision versions 3.10.6, 11.7, 1.13.1+cu117, and 0.14.1+cu117. So, it is expected that versions of these softwares ranging from those tested on cuda developemnt toolkit 11.3 up to 11.7 and their respective python, pytorch and torchvision equivalents should also work. 
 	- For the CPU version, edit the requirements.txt changing '+cu113' to '+cpu' and run `python -m pip install -r requirements.txt`	 
@@ -13,7 +11,7 @@ To replicate our results, please follow the steps below.
 ## Data download
 1. Download JSRT data from https://www.kaggle.com/datasets/raddar/nodules-in-chest-xrays-jsrt (last access on 19th of June, 2023), uncompress it, convert the X-ray images to jpg format, and move these files into datasets/JSRT_dataset/jpg_imgs/ folder
 
-2. Download SCR masks for JSRT from https://drive.google.com/drive/folders/1FqT2XsBQ_cPwGkq8g1QnSg2PUmh9E9fq?usp=sharing (last access in 19th of June, 2023) and uncompress it into datasets/JSRT_dataset/ folder
+2. Download SCR masks for JSRT from https://drive.google.com/drive/folders/1FqT2XsBQ_cPwGkq8g1QnSg2PUmh9E9fq?usp=sharing (last access in 19th of June, 2023), uncompress, and move the lungs folder into datasets/JSRT_dataset/masks/ folder
 
 3. Download weights from https://drive.google.com/drive/folders/1TdAAP6pdZGI7GFfRBdz3_GbaZWIiFP9U?usp=sharing  (last access on 19th of June, 2023) and uncompress it into experiments/ folder. The experiments described are associated to the following folders:
 	- S1: jsrt_lung_segmentation_input_pre_processed_pseudo_labels_post_processed/
@@ -21,7 +19,7 @@ To replicate our results, please follow the steps below.
 	- S3: jsrt_lung_segmentation_input_not_pre_processed_pseudo_labels_not_post_processed/ 
 	- S4: jsrt_lung_segmentation_input_not_pre_processed_pseudo_labels_post_processed/
 
-4. For results on Montgomery County (MC) dataset, download both the X-rays and masks from https://openi.nlm.nih.gov/faq#faq-tb-coll (last access on 20th of June, 2023) and uncompress them into datasets/ folder
+4. For results on Montgomery County (MC) dataset, download both the X-rays and masks from https://openi.nlm.nih.gov/faq#faq-tb-coll (last access on 20th of June, 2023), uncompress them and move the NLM-MontgomeryCXRSet/ folder into datasets/ folder
 
 	
 ## Model running

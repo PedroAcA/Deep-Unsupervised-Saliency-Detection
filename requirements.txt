@@ -1,3 +1,4 @@
-torch==1.12.1+cu113
-torchvision==0.13.1+cu113
+--find-links https://download.pytorch.org/whl/cu113/torch_stable.html; sys_platform == "linux"
+torch==1.12.1; sys_platform == "linux"
+torchvision==0.13.1; sys_platform == "linux"
 numpy==1.24.1

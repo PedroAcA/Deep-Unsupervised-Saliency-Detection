@@ -1,12 +1,12 @@
 # Overview
-This project performs unsupervised lung segmentation using visual saliency at training phase. All the command lines shown here expect that the prompt window is opened inside the src/ folder. 
+This project performs unsupervised lung segmentation using visual saliency at training phase.
 # Model testing
 To replicate our results, please follow the steps below.
 ## Software setup
 1. Install Python 3.7.13 (a python virtual enviroment can be used)
 
 2. Install Pytorch and Torchvision
-	- For the GPU version, install the CUDA Toolkit 11.3 available at https://developer.nvidia.com/cuda-11.3.0-download-archive (last access on 20th, June 2023) and run `python -m pip install -r requirements.txt`
+	- For the GPU version, install the CUDA Toolkit 11.3 available at https://developer.nvidia.com/cuda-11.3.0-download-archive (last access on 20th, June 2023) and run `python -m pip install -r requirements.txt` on a prompt opened in this folder.
 		- This project was also tested on the following python, cuda development toolkit, pytorch and torchvision versions 3.10.6, 11.7, 1.13.1+cu117, and 0.14.1+cu117. So, it is expected that versions of these softwares ranging from those tested on cuda developemnt toolkit 11.3 up to 11.7 and their respective python, pytorch and torchvision equivalents should also work. 
 	- For the CPU version, edit the requirements.txt changing '+cu113' to '+cpu' and run `python -m pip install -r requirements.txt`	 
 
@@ -22,8 +22,11 @@ To replicate our results, please follow the steps below.
 	- S4: jsrt_lung_segmentation_input_not_pre_processed_pseudo_labels_post_processed/
 
 4. For results on Montgomery County (MC) dataset, download both the X-rays and masks from https://openi.nlm.nih.gov/faq#faq-tb-coll (last access on 20th of June, 2023) and uncompress them into datasets/ folder
+
 	
 ## Model running
+Note: All the command lines shown below expect that the prompt window is opened inside the src/ folder. 
+
 - If running S1 or S2, pre-process the X-Ray input using `python preprocess_input.py --data_root ../datasets/JSRT_dataset/jpg_imgs/ --out_dir ../datasets/JSRT_dataset/pre_processed_2048_2048/` to pre-process images stored on datasets/JSRT_dataset/jpg_imgs/ and save the results into /datasets/JSRT_dataset/pre_processed_2048_2048/
 
 - To run the model, use the following command `python deep_unsup_sd.py --config_file ../experiments/jsrt_lung_segmentation_input_not_pre_processed_pseudo_labels_post_processed/config.txt --mode test --chkpt_file ../experiments/jsrt_lung_segmentation_input_not_pre_processed_pseudo_labels_post_processed/chkpt/checkpoint_epoch_jsrt_lung_segmentation_input_not_pre_processed_pseudo_labels_post_processed_19.pth --test_batch_size 1 --test_type quantitative`.

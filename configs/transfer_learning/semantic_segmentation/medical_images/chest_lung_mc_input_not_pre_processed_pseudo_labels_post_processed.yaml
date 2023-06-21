@@ -25,8 +25,6 @@ SOLVER:
   MIN_LR: 1e-16
   COOLDOWN: 1
 SAVE_ROOT: "../experiments/"
-VAL:
-  USE_GT_LABELS: False
 DATA:
   TRAIN:
     ROOT: '../datasets/JSRT_dataset/jpg_imgs/'

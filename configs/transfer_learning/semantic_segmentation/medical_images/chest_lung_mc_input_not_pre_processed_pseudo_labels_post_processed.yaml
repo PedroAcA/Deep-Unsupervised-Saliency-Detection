@@ -39,4 +39,4 @@ DATA:
   TEST:
     ROOT: '../datasets/NLM-MontgomeryCXRSet/MontgomerySet/CXR_png/'
     LIST: '../datasets/NLM-MontgomeryCXRSet/MontgomerySet/test.lst'
-    GT_ROOT: '../datasets//NLM-MontgomeryCXRSet/MontgomerySet/ManualMask/lungs/'
+    GT_ROOT: '../datasets/NLM-MontgomeryCXRSet/MontgomerySet/ManualMask/lungs/'

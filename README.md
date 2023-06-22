@@ -19,7 +19,7 @@ To replicate our results, please follow the steps below.
 	- S3: jsrt_lung_segmentation_input_not_pre_processed_pseudo_labels_not_post_processed/ 
 	- S4: jsrt_lung_segmentation_input_not_pre_processed_pseudo_labels_post_processed/
 
-4. For results on Montgomery County (MC) dataset, download both the X-rays and masks from https://openi.nlm.nih.gov/faq#faq-tb-coll (last access on 20th of June, 2023), uncompress them and merge the NLM-MontgomeryCXRSet/ folder with the existing NLM-MontgomeryCXRSet/ that is located in the datasets/ folder
+4. For results on Montgomery County (MC) dataset, download both the X-rays and masks from https://drive.google.com/drive/folders/15S6r-TxdQEkjK4GvaYxqp2Wuk9E7nJM7?usp=sharing (last access on 21st of JUne, 2023). It has both the right and left lung masks from https://openi.nlm.nih.gov/faq#faq-tb-coll (last access on 20th of June, 2023) merged into a single file. After downloading, uncompress them and move the NLM-MontgomeryCXRSet/ folder to the datasets/ folder
 
 	
 ## Model running
